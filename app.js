@@ -56,12 +56,13 @@
     v.innerHTML = `
       <div class="card"><div class="dim">Paper equity</div><div class="big">${usd(s.equity)}</div>
         <div class="${cls(s.pnl_usd)}">${usd(s.pnl_usd)} (${pct(s.pnl_pct)}) since start ${usd(s.start_usd, 0)}</div>
-        <div class="note">Cash ${usd(s.cash)} · realized ${usd(s.realized_usd)} ${s.paused ? '· <span class="pill o">paused</span>' : ""}</div>
+        <div class="note">Cash ${usd(s.cash)} (free ${usd(s.free_cash)}) · realized ${usd(s.realized_usd)} ${s.paused ? '· <span class="pill o">paused</span>' : ""}</div>
+        <div class="note">Buys ${esc(s.night.window)}: <span class="pill ${s.night.open ? "g" : ""}">${s.night.open ? "open" : "closed"}</span> · trades ${esc(s.night.trades)}/${esc(s.night.max_trades)} · night loss ${pct(-s.night.loss_pct)}</div>
         <canvas id="chart"></canvas></div>
       <div class="h">Open positions</div>
       <div class="card">${pos.length ? pos.map(p => `<div class="row" data-mint="${esc(p.mint)}"><div class="l"><b>${esc(p.symbol)}</b><small>in ${px(p.entry)} · now ${px(p.price)} · ${ago(p.opened)}${p.tp_done ? " · TP1 taken" : ""}</small></div><div class="r"><b class="${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</b><br><small class="dim">${usd(p.value)}</small></div></div>`).join("") : `<div class="dim">No open paper positions.</div>`}</div>
       <div class="h">Waiting for a dip</div>
-      <div class="card">${w.length ? w.map(x => `<div class="row" data-mint="${esc(x.mint)}"><div class="l"><b>${esc(x.symbol)}</b><small>score ${Math.round(x.score)} · buy at ≤ ${px(x.trigger)}</small></div><div class="r dim">${ago(x.since)}</div></div>`).join("") : `<div class="dim">Nothing approved right now.</div>`}</div>
+      <div class="card">${w.length ? w.map(x => `<div class="row" data-mint="${esc(x.mint)}"><div class="l"><b>${esc(x.symbol)}</b><small>score ${Math.round(x.score)} · ${usd(x.size)} waiting for a 15% dip</small></div><div class="r dim">${ago(x.since)}</div></div>`).join("") : `<div class="dim">Nothing approved right now.</div>`}</div>
       <div class="h">Recent closes</div>
       <div class="card">${(s.closed || []).length ? s.closed.slice(0, 10).map(c => `<div class="row" data-mint="${esc(c.mint)}"><div class="l"><b>${esc(c.symbol)}</b><small>${esc(c.exit_reason)}</small></div><div class="r ${cls(c.pnl_usd)}">${usd(c.pnl_usd)}</div></div>`).join("") : `<div class="dim">No closed trades yet.</div>`}</div>
       <button class="btn alt" id="audits">Audits (${(s.audits || []).length})</button>`;
@@ -98,7 +99,7 @@
 
   function renderActivity(v) {
     const items = (data.activity && data.activity.items) || [];
-    v.innerHTML = items.length ? `<div class="card">${items.map(a => `<div class="row" ${a.mint ? `data-mint="${esc(a.mint)}"` : ""}><div class="l"><b>${esc(a.text)}</b><small>${esc(a.bot)} · ${t(a.ts)}</small></div></div>`).join("")}</div>` : `<div class="state"><p>No activity yet.</p><p class="note">The Scanner logs each pump.fun migration here.</p></div>`;
+    v.innerHTML = items.length ? `<div class="card">${items.map(a => `<div class="row" ${a.mint ? `data-mint="${esc(a.mint)}"` : ""}><div class="l"><b>${esc(a.title)}</b><small>${esc(a.subtitle)} · ${t(a.ts)}</small></div><div class="r ${a.kind === "stopped" ? "neg" : a.kind === "bought" ? "" : a.kind === "sold" ? "pos" : "dim"}">${esc(a.value || "")}</div></div>`).join("")}</div>` : `<div class="state"><p>No activity yet.</p><p class="note">The Scanner logs each pump.fun migration here.</p></div>`;
     bindCoins(v);
   }
 
@@ -117,7 +118,7 @@
 
   function renderAudits(v, s) {
     const a = s.audits || [];
-    v.innerHTML = `<button class="back" id="bk">‹ Back</button><div class="card">${a.length ? a.map(x => `<div class="row" data-mint="${esc(x.mint)}"><div class="l"><b>${esc(x.symbol || x.mint.slice(0, 6))}</b><small>${esc(x.kill_reason || x.verdict)} · ${t(x.ts)}</small></div><div class="r"><span class="pill ${x.verdict === "approved" ? "g" : x.verdict === "killed" ? "r" : ""}">${x.score != null ? Math.round(x.score) : "—"}</span></div></div>`).join("") : `<div class="dim">No audits yet.</div>`}</div>`;
+    v.innerHTML = `<button class="back" id="bk">‹ Back</button><div class="card">${a.length ? a.map(x => `<div class="row" data-mint="${esc(x.mint)}"><div class="l"><b>${esc(x.symbol || x.mint.slice(0, 6))}</b><small>${esc(x.reason || x.verdict)} · ${t(x.ts)}</small></div><div class="r"><span class="pill ${x.verdict === "pass" ? "g" : x.verdict === "rejected" ? "r" : ""}">${x.score != null ? Math.round(x.score) : "—"}</span></div></div>`).join("") : `<div class="dim">No audits yet.</div>`}</div>`;
     $("#bk").onclick = () => { sub = null; render(); };
     bindCoins(v);
   }
@@ -128,18 +129,21 @@
     try { c = await get("coin/" + encodeURIComponent(sub.mint) + ".json"); }
     catch (e) { v.innerHTML = `<button class="back" id="bk">‹ Back</button><div class="state"><p>No audit for this coin in the latest push.</p><p class="note">${esc(e.message)}</p></div>`; $("#bk").onclick = () => { sub = null; render(); }; return; }
     if (!sub || sub.kind !== "coin") return;
-    const L = c.layers || {}, P = c.points || {};
-    const layerRow = (k, label) => { const l = L[k] || {}, p = P[k] || {}; const val = typeof l.value === "number" ? l.value : 0; return `<div class="row"><div class="l"><b>${esc(label)}</b><small>${esc(l.note || l.label || "")}</small><div class="bar"><i style="width:${Math.round(val * 100)}%"></i></div></div><div class="r">${p.w ? `${esc(p.points)}/${esc(p.w)}` : (k === "authority" ? (val ? "ok" : "fail") : "w=0")}</div></div>`; };
+    const layers = Array.isArray(c.layers) ? c.layers : [];
+    const sp = c.score_parts || null;
+    const pill = (p) => p === true ? '<span class="pill g">ok</span>' : p === false ? '<span class="pill r">red</span>' : '<span class="pill">grey</span>';
     v.innerHTML = `<button class="back" id="bk">‹ Back</button>
-      <div class="card"><div class="row"><div class="l"><b style="font-size:22px">${esc(c.symbol)}</b><small>${esc(c.name)}</small></div><div class="r"><span class="pill ${c.verdict === "approved" ? "g" : c.verdict === "killed" ? "r" : ""}">${esc(c.verdict)}</span></div></div>
-        <div class="grid"><div><small class="dim">score</small><b>${esc(Math.round(c.score))}</b></div><div><small class="dim">price</small><b>${px(c.price_usd)}</b></div><div><small class="dim">liquidity</small><b>${usd(c.liquidity_usd, 0)}</b></div><div><small class="dim">market cap</small><b>${usd(c.market_cap, 0)}</b></div></div>
-        ${c.kills && c.kills.length ? `<div class="note neg">Killed: ${c.kills.map(esc).join("; ")}</div>` : ""}
+      <div class="card"><div class="row"><div class="l"><b style="font-size:22px">${esc(c.symbol)}</b><small>${esc(c.name)}</small></div><div class="r"><span class="pill ${c.verdict === "pass" ? "g" : "r"}">${esc(c.verdict)}</span></div></div>
+        <div class="grid"><div><small class="dim">score</small><b>${c.score != null ? esc(c.score) : "—"}</b></div><div><small class="dim">price</small><b>${px(c.price_usd)}</b></div><div><small class="dim">liquidity</small><b>${usd(c.liquidity_usd, 0)}</b></div><div><small class="dim">market cap</small><b>${usd(c.market_cap, 0)}</b></div></div>
+        ${c.reason ? `<div class="note neg">${esc(c.reason)}</div>` : ""}
         ${fomoBtn(c.coin_url)}</div>
       <div class="h">Audit · 8 layers</div>
-      <div class="card">${layerRow("authority", "1 · Mint / freeze authority")}${layerRow("liquidity", "2 · Liquidity")}${layerRow("dev", "3 · Dev history")}${layerRow("top10", "4 · Top 10 holders")}${layerRow("insiders", "5 · Insiders")}${layerRow("organic", "6 · Organic (txns)")}${layerRow("flush", "7 · Flush (txns)")}${layerRow("delegations", "8 · Delegations")}${layerRow("social", "Social")}${layerRow("smart", "Smart money")}
-        ${c.penalty ? `<div class="note">RugCheck danger flags: −${esc(c.penalty)}</div>` : ""}</div>
-      <div class="card"><div class="note">FOMO-only fields (unique buyers/sellers, FOMO holders, tokenWarnings, selling off) are not public and stay empty. Organic and flush use DexScreener trade counts.</div>
-        <div class="note">Audited ${t(c.audited_at)} · RugCheck holders ${esc(c.rugcheck_holders ?? "—")}</div><div class="note mono">${esc(c.mint)}</div></div>`;
+      <div class="card">${layers.map(l => `<div class="row"><div class="l"><b>${esc(l.layer)} · ${esc(l.name)}</b><small>${esc(l.value_text)} · ${esc(l.source)}</small></div><div class="r">${pill(l.pass)}</div></div>`).join("")}</div>
+      ${sp ? `<div class="h">Score</div><div class="card"><div class="grid"><div><small class="dim">alive</small><b>${esc(sp.alive)}</b></div><div><small class="dim">organic: txns</small><b>${esc(sp.organic)}</b></div><div><small class="dim">flush: txns</small><b>${esc(sp.flush)}</b></div><div><small class="dim">chase</small><b>${esc(sp.chase)}</b></div></div>
+        <div class="note">score = round(100 × (alive + organic + flush + (1 − chase)) / 4) · social: off (social_pts 0) · fresh wallets ${sp.fresh_pct != null ? esc(Math.round(sp.fresh_pct)) + "%" : "—"}</div>
+        <div class="note">${(sp.notes || []).map(esc).join(" · ")}</div></div>` : ""}
+      <div class="card"><div class="note">FOMO-only fields (unique buyers/sellers, FOMO holders, tokenWarnings) are not public and stay empty.</div>
+        <div class="note">Audited ${t(c.audited_at)} · holders ${esc(c.holders ?? "—")}</div><div class="note mono">${esc(c.mint)}</div></div>`;
     $("#bk").onclick = () => { sub = null; render(); };
   }
 
