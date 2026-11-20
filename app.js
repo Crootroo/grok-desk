@@ -9,7 +9,7 @@
   const px = (n) => n == null ? "—" : "$" + Number(n).toPrecision(4);
   const t = (ts) => ts ? new Date(ts * 1000).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : "—";
   const ago = (ts) => { if (!ts) return "—"; const s = Date.now() / 1000 - ts; return s < 60 ? Math.round(s) + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : Math.round(s / 3600) + "h ago"; };
-  const FOMO = "https://fomo.family/tokens/solana/";
+  const FOMO = "https://fomo.family/coin?address=";
   const fomoBtn = (u) => (typeof u === "string" && u.startsWith(FOMO)) ? `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener noreferrer">Open on FOMO</a>` : "";
 
   // data path: #d=... -> localStorage, then strip from the address bar
@@ -107,6 +107,7 @@
     v.innerHTML = `
       <div class="card"><div class="row"><div class="l"><b>Mode</b><small>${s ? esc(s.live_note) : "LIVE not available in this build"}</small></div><div class="r"><span class="pill o">PAPER</span></div></div>
         ${s ? `<div class="row"><div class="l"><b>FOMO handle</b></div><div class="r">@${esc(s.fomo_handle)}</div></div>` : ""}
+        ${s && typeof s.profile_url === "string" && s.profile_url.startsWith("https://fomo.family/profile/") ? `<a class="btn alt" href="${esc(s.profile_url)}" target="_blank" rel="noopener noreferrer">Your FOMO profile</a>` : ""}
         <div class="row"><div class="l"><b>This device</b><small>${base ? "Linked to your desk" : "Not linked"}</small></div><div class="r"><button class="back" id="unlink">${base ? "Unlink" : ""}</button></div></div></div>
       <div class="h">Settings</div>
       <div class="card"><div class="note">${s ? esc(s.settings_note) : "Change via Telegram"}</div>${rows}</div>
