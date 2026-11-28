@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Grok Desk">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<title>Grok Desk</title>
+</head>
+<body>
+<header class="top">
+  <div class="title" id="title">Home</div>
+  <span class="badge">PAPER</span>
+</header>
+<div class="sub" id="updated">Loading…</div>
+<main id="view"><div class="state loading"><div class="spin"></div><p>Loading desk…</p></div></main>
+<nav class="tabs">
+  <button data-tab="home" class="on"><span class="ic">◉</span>Home</button>
+  <button data-tab="bots"><span class="ic">◎</span>Bots</button>
+  <button data-tab="activity"><span class="ic">≡</span>Activity</button>
+  <button data-tab="account"><span class="ic">◌</span>Account</button>
+</nav>
+<script src="app.js"></script>
+</body>
+</html>
